@@ -276,12 +276,29 @@
     tabsEl.appendChild(btn);
   });
 
-  /* Fetch a single RSS feed via allorigins CORS proxy, parse XML directly */
+  /* CORS proxy chain — tries each until one works */
+  async function proxyFetch(feedUrl) {
+    const proxies = [
+      async u => {
+        const r = await fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`);
+        if (!r.ok) throw new Error(r.status);
+        return r.text();
+      },
+      async u => {
+        const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`);
+        if (!r.ok) throw new Error(r.status);
+        return (await r.json()).contents;
+      },
+    ];
+    for (const proxy of proxies) {
+      try { return await proxy(feedUrl); } catch {}
+    }
+    throw new Error('All proxies failed for ' + feedUrl);
+  }
+
+  /* Fetch a single RSS feed, parse XML directly */
   async function fetchFeed(feedUrl) {
-    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(feedUrl)}`;
-    const res = await fetch(proxy);
-    if (!res.ok) throw new Error('Proxy ' + res.status);
-    const { contents } = await res.json();
+    const contents = await proxyFetch(feedUrl);
 
     const doc = new DOMParser().parseFromString(contents, 'text/xml');
     const feedName = doc.querySelector('channel > title')?.textContent?.trim() || feedUrl;
