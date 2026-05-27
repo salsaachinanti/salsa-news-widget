@@ -234,23 +234,16 @@
 <div class="footer" id="footer"></div>
 
 <script>
-  // ─────────────────────────────────────────────────────────
-  //  STEP 1 — Paste your free GNews API key here
-  //  Get one at: https://gnews.io  (takes 30 seconds)
-  // ─────────────────────────────────────────────────────────
-  const API_KEY = 'b684f9570badab7f3328554d4d9510be';
-  // ─────────────────────────────────────────────────────────
+  // No API key needed — uses public RSS feeds via rss2json.com
 
-  const CATEGORIES = ['All', 'Business', 'Product', 'Tech', 'Design', 'Finance', 'Religion'];
-
-  const CONFIG = {
-    All:      { mode: 'top',    val: 'general' },
-    Business: { mode: 'top',    val: 'business' },
-    Product:  { mode: 'search', val: 'product launch startup innovation' },
-    Tech:     { mode: 'top',    val: 'technology' },
-    Design:   { mode: 'search', val: 'graphic design ux ui creative branding' },
-    Finance:  { mode: 'search', val: 'finance stock market investing economy' },
-    Religion: { mode: 'search', val: 'religion faith spiritual church mosque' },
+  const FEEDS = {
+    All:      'https://feeds.bbci.co.uk/news/rss.xml',
+    Business: 'https://feeds.bbci.co.uk/news/business/rss.xml',
+    Product:  'https://techcrunch.com/feed/',
+    Tech:     'https://www.theverge.com/rss/index.xml',
+    Design:   'https://www.dezeen.com/feed/',
+    Finance:  'https://www.cnbc.com/id/10000664/device/rss/rss.html',
+    Religion: 'https://religionnews.com/feed/',
   };
 
   const ICONS = {
@@ -258,6 +251,7 @@
     Tech: '💻', Design: '🎨', Finance: '💰', Religion: '✨',
   };
 
+  const CATEGORIES = Object.keys(FEEDS);
   let active = 'All';
   const cache = {};
 
@@ -279,39 +273,50 @@
 
   /* Fetch or serve from cache */
   async function load(cat, force = false) {
-    if (!force && cache[cat]) { render(cache[cat]); return; }
-
-    if (API_KEY === 'YOUR_GNEWS_API_KEY_HERE') {
-      showError(
-        `⚠️ Almost there! Open <code>news.html</code> and replace<br>
-        <code>YOUR_GNEWS_API_KEY_HERE</code> with your free key.<br><br>
-        Get one in 30 sec at <a href="https://gnews.io" target="_blank">gnews.io</a> → Sign up → Copy API Key`
-      );
-      return;
-    }
+    if (!force && cache[cat]) { render(cache[cat], cat); return; }
 
     showLoading();
-    const { mode, val } = CONFIG[cat];
-    const url = mode === 'top'
-      ? `https://gnews.io/api/v4/top-headlines?category=${val}&lang=en&max=10&apikey=${API_KEY}`
-      : `https://gnews.io/api/v4/search?q=${encodeURIComponent(val)}&lang=en&max=10&sortby=publishedAt&apikey=${API_KEY}`;
+    const api = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(FEEDS[cat])}&count=10`;
 
     try {
-      const res = await fetch(url);
+      const res = await fetch(api);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
-      if (!res.ok || data.errors) throw new Error(data.errors?.[0] || 'API error ' + res.status);
-      cache[cat] = data.articles || [];
-      render(cache[cat]);
+      if (data.status !== 'ok') throw new Error(data.message || 'Feed error');
+
+      const feedName = data.feed?.title || cat;
+      cache[cat] = data.items.map(item => ({
+        title:       item.title,
+        url:         item.link,
+        description: stripHtml(item.description),
+        image:       pickImage(item),
+        source:      feedName,
+        publishedAt: item.pubDate,
+      }));
+      render(cache[cat], cat);
     } catch (err) {
-      showError('Could not fetch news: ' + err.message);
+      showError('Could not load news: ' + err.message);
     }
   }
 
+  function pickImage(item) {
+    if (item.thumbnail && item.thumbnail !== 'false' && item.thumbnail !== '') return item.thumbnail;
+    if (item.enclosure?.link && item.enclosure.type?.startsWith('image')) return item.enclosure.link;
+    const m = (item.description || '').match(/<img[^>]+src=["']([^"']+)["']/i);
+    return m ? m[1] : null;
+  }
+
+  function stripHtml(html) {
+    const d = document.createElement('div');
+    d.innerHTML = html || '';
+    return d.textContent.trim();
+  }
+
   /* Render article cards */
-  function render(articles) {
+  function render(articles, cat) {
     const el = document.getElementById('content');
     document.getElementById('footer').textContent =
-      'Updated ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ' · GNews';
+      'Updated ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
     if (!articles.length) {
       el.innerHTML = '<div class="error-box">No articles found. Try refreshing.</div>';
@@ -330,19 +335,19 @@
 
       const imgHtml = a.image
         ? `<img class="card-img" src="${x(a.image)}" alt="" loading="lazy"
-               onerror="this.outerHTML='<div class=card-placeholder>${ICONS[active]}</div>'">`
-        : `<div class="card-placeholder">${ICONS[active]}</div>`;
+               onerror="this.outerHTML='<div class=card-placeholder>${ICONS[cat]}</div>'">`
+        : `<div class="card-placeholder">${ICONS[cat]}</div>`;
 
       card.innerHTML = `
         ${imgHtml}
         <div class="card-body">
           <div class="card-meta">
-            <span class="card-source">${x(a.source?.name || '')}</span>
+            <span class="card-source">${x(a.source)}</span>
             <span class="card-sep">·</span>
             <span class="card-time">${ago(a.publishedAt)}</span>
           </div>
           <div class="card-title">${x(a.title)}</div>
-          <div class="card-desc">${x(a.description || '')}</div>
+          <div class="card-desc">${x(a.description)}</div>
           <div class="card-cta">Read more →</div>
         </div>`;
 
@@ -361,7 +366,6 @@
     document.getElementById('content').innerHTML = `<div class="error-box">${msg}</div>`;
   }
 
-  /* Helpers */
   function x(s) {
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
@@ -372,7 +376,6 @@
     return Math.floor(h / 24) + 'd ago';
   }
 
-  /* Boot */
   load('All');
 </script>
 </body>
