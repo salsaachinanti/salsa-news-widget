@@ -29,21 +29,36 @@
       min-height: 100vh;
     }
 
-    /* ── Header ── */
-    .header {
+    /* ── Sticky tab bar ── */
+    .tabs-bar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--cream);
+      padding: 14px 0 14px;
+      margin: 0 -24px 22px;
+      padding-left: 24px;
+      padding-right: 24px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      margin-bottom: 16px;
+      gap: 8px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
-    .header-title {
-      font-size: 19px;
-      font-weight: 800;
-      letter-spacing: -0.3px;
+    .tabs-bar.scrolled {
+      border-bottom-color: var(--border);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+    }
+
+    /* ── Tabs ── */
+    .tabs {
       display: flex;
-      align-items: center;
-      gap: 5px;
+      flex-wrap: wrap;
+      gap: 8px;
+      flex: 1;
     }
+
     .btn-refresh {
       background: transparent;
       border: 1.5px solid var(--border);
@@ -54,16 +69,10 @@
       border-radius: 20px;
       cursor: pointer;
       transition: 0.15s;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
     .btn-refresh:hover { border-color: var(--cobalt); color: var(--cobalt); }
-
-    /* ── Tabs ── */
-    .tabs {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 22px;
-    }
     .tab {
       padding: 5px 16px;
       border-radius: 20px;
@@ -219,17 +228,10 @@
 </head>
 <body>
 
-<div class="header">
-  <div class="header-title">
-    <span style="color:var(--tomato)">●</span>
-    <span style="color:var(--sun)">●</span>
-    <span style="color:var(--jade)">●</span>
-    Top News
-  </div>
+<div class="tabs-bar" id="tabsBar">
+  <div class="tabs" id="tabs"></div>
   <button class="btn-refresh" onclick="load(active, true)">↻ Refresh</button>
 </div>
-
-<div class="tabs" id="tabs"></div>
 <div id="content"></div>
 <div class="footer" id="footer"></div>
 
@@ -284,7 +286,7 @@
     try {
       const responses = await Promise.all(
         urls.map(u =>
-          fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(u)}&count=10`)
+          fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(u)}&count=12`)
             .then(r => r.json())
         )
       );
@@ -307,7 +309,7 @@
 
       if (!merged.length) throw new Error('No articles returned');
       merged.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
-      cache[cat] = merged.slice(0, 10);
+      cache[cat] = merged.slice(0, 12);
       render(cache[cat], cat);
     } catch (err) {
       showError('Could not load news: ' + err.message);
@@ -390,6 +392,12 @@
     if (h < 24) return h + 'h ago';
     return Math.floor(h / 24) + 'd ago';
   }
+
+  /* Sticky shadow on scroll */
+  const bar = document.getElementById('tabsBar');
+  window.addEventListener('scroll', () => {
+    bar.classList.toggle('scrolled', window.scrollY > 10);
+  }, { passive: true });
 
   load('All');
 </script>
