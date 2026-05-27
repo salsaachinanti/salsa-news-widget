@@ -167,7 +167,7 @@
     .card-cta {
       font-size: 12px;
       font-weight: 600;
-      color: var(--cobalt);
+      color: var(--text);
     }
 
     /* ── States ── */
@@ -241,9 +241,12 @@
     Business: 'https://feeds.bbci.co.uk/news/business/rss.xml',
     Product:  'https://techcrunch.com/feed/',
     Tech:     'https://www.theverge.com/rss/index.xml',
-    Design:   'https://www.dezeen.com/feed/',
-    Finance:  'https://www.cnbc.com/id/10000664/device/rss/rss.html',
-    Religion: 'https://religionnews.com/feed/',
+    Design:   'https://uxdesign.cc/feed',
+    Finance:  [
+      'https://www.cnbc.com/id/10000664/device/rss/rss.html',
+      'https://rss.detik.com/index.php/detikfinance',
+    ],
+    Religion: 'https://aboutislam.net/feed/',
   };
 
   const ICONS = {
@@ -276,23 +279,35 @@
     if (!force && cache[cat]) { render(cache[cat], cat); return; }
 
     showLoading();
-    const api = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(FEEDS[cat])}&count=10`;
+    const urls = Array.isArray(FEEDS[cat]) ? FEEDS[cat] : [FEEDS[cat]];
 
     try {
-      const res = await fetch(api);
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
-      if (data.status !== 'ok') throw new Error(data.message || 'Feed error');
+      const responses = await Promise.all(
+        urls.map(u =>
+          fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(u)}&count=10`)
+            .then(r => r.json())
+        )
+      );
 
-      const feedName = data.feed?.title || cat;
-      cache[cat] = data.items.map(item => ({
-        title:       item.title,
-        url:         item.link,
-        description: stripHtml(item.description),
-        image:       pickImage(item),
-        source:      feedName,
-        publishedAt: item.pubDate,
-      }));
+      let merged = [];
+      responses.forEach(data => {
+        if (data.status !== 'ok') return;
+        const feedName = data.feed?.title || cat;
+        data.items.forEach(item => {
+          merged.push({
+            title:       item.title,
+            url:         item.link,
+            description: stripHtml(item.description),
+            image:       pickImage(item),
+            source:      feedName,
+            publishedAt: item.pubDate,
+          });
+        });
+      });
+
+      if (!merged.length) throw new Error('No articles returned');
+      merged.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+      cache[cat] = merged.slice(0, 10);
       render(cache[cat], cat);
     } catch (err) {
       showError('Could not load news: ' + err.message);
