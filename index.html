@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Top News — Dashboard</title>
+  <style>
+    :root {
+      --cream:   #FBF5E8;
+      --cobalt:  #1E4FD9;
+      --sun:     #F5C518;
+      --tomato:  #E63946;
+      --pink:    #E94B9B;
+      --jade:    #0E8C7A;
+      --purple:  #7C3AED;
+      --text:    #1C1C1C;
+      --muted:   #8A8A8A;
+      --border:  #E5DDD0;
+      --white:   #FFFFFF;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--cream);
+      color: var(--text);
+      padding: 22px 24px 36px;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .header-title {
+      font-size: 19px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .btn-refresh {
+      background: transparent;
+      border: 1.5px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 14px;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: 0.15s;
+    }
+    .btn-refresh:hover { border-color: var(--cobalt); color: var(--cobalt); }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 22px;
+    }
+    .tab {
+      padding: 5px 16px;
+      border-radius: 20px;
+      border: 1.5px solid var(--border);
+      background: var(--white);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      cursor: pointer;
+      transition: 0.15s;
+      user-select: none;
+    }
+    .tab:hover:not(.active) { border-color: var(--cobalt); color: var(--cobalt); }
+
+    .tab.active[data-cat="All"]      { background: var(--cobalt);  border-color: var(--cobalt);  color: #fff; }
+    .tab.active[data-cat="Business"] { background: var(--jade);    border-color: var(--jade);    color: #fff; }
+    .tab.active[data-cat="Product"]  { background: var(--pink);    border-color: var(--pink);    color: #fff; }
+    .tab.active[data-cat="Tech"]     { background: var(--cobalt);  border-color: var(--cobalt);  color: #fff; }
+    .tab.active[data-cat="Design"]   { background: var(--tomato);  border-color: var(--tomato);  color: #fff; }
+    .tab.active[data-cat="Finance"]  { background: var(--purple);  border-color: var(--purple);  color: #fff; }
+    .tab.active[data-cat="Religion"] { background: var(--sun);     border-color: var(--sun);     color: var(--text); }
+
+    /* ── Grid ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    @media (max-width: 820px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 500px) { .grid { grid-template-columns: 1fr; } }
+
+    /* ── Card ── */
+    .card {
+      background: var(--white);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.18s, box-shadow 0.18s;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 28px rgba(30,79,217,0.09);
+    }
+
+    .card-img {
+      width: 100%;
+      height: 148px;
+      object-fit: cover;
+      display: block;
+    }
+    .card-placeholder {
+      width: 100%;
+      height: 148px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 42px;
+      background: linear-gradient(135deg, #f0eadd 0%, #e8dfd3 100%);
+    }
+
+    .card-body {
+      padding: 13px 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      flex: 1;
+    }
+    .card-meta {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+    }
+    .card-source {
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .card-sep { color: var(--border); }
+    .card-time { color: var(--muted); }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.45;
+    }
+    .card-desc {
+      font-size: 12.5px;
+      color: var(--muted);
+      line-height: 1.55;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      flex: 1;
+    }
+    .card-cta {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--cobalt);
+    }
+
+    /* ── States ── */
+    .state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 240px;
+      gap: 14px;
+      text-align: center;
+    }
+    .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--cobalt);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .state-text { font-size: 14px; color: var(--muted); }
+
+    .error-box {
+      background: #fff8f8;
+      border: 1px solid #ffd5d5;
+      border-radius: 12px;
+      padding: 24px;
+      font-size: 14px;
+      color: var(--tomato);
+      text-align: center;
+      line-height: 1.7;
+    }
+    .error-box a { color: var(--cobalt); }
+    .error-box code {
+      background: #f0eadd;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      margin-top: 20px;
+      font-size: 11.5px;
+      color: var(--muted);
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">
+    <span style="color:var(--tomato)">●</span>
+    <span style="color:var(--sun)">●</span>
+    <span style="color:var(--jade)">●</span>
+    Top News
+  </div>
+  <button class="btn-refresh" onclick="load(active, true)">↻ Refresh</button>
+</div>
+
+<div class="tabs" id="tabs"></div>
+<div id="content"></div>
+<div class="footer" id="footer"></div>
+
+<script>
+  // ─────────────────────────────────────────────────────────
+  //  STEP 1 — Paste your free GNews API key here
+  //  Get one at: https://gnews.io  (takes 30 seconds)
+  // ─────────────────────────────────────────────────────────
+  const API_KEY = 'b684f9570badab7f3328554d4d9510be';
+  // ─────────────────────────────────────────────────────────
+
+  const CATEGORIES = ['All', 'Business', 'Product', 'Tech', 'Design', 'Finance', 'Religion'];
+
+  const CONFIG = {
+    All:      { mode: 'top',    val: 'general' },
+    Business: { mode: 'top',    val: 'business' },
+    Product:  { mode: 'search', val: 'product launch startup innovation' },
+    Tech:     { mode: 'top',    val: 'technology' },
+    Design:   { mode: 'search', val: 'graphic design ux ui creative branding' },
+    Finance:  { mode: 'search', val: 'finance stock market investing economy' },
+    Religion: { mode: 'search', val: 'religion faith spiritual church mosque' },
+  };
+
+  const ICONS = {
+    All: '🌍', Business: '💼', Product: '📦',
+    Tech: '💻', Design: '🎨', Finance: '💰', Religion: '✨',
+  };
+
+  let active = 'All';
+  const cache = {};
+
+  /* Build tabs */
+  const tabsEl = document.getElementById('tabs');
+  CATEGORIES.forEach(cat => {
+    const btn = document.createElement('button');
+    btn.className = 'tab' + (cat === 'All' ? ' active' : '');
+    btn.dataset.cat = cat;
+    btn.textContent = ICONS[cat] + ' ' + cat;
+    btn.onclick = () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      active = cat;
+      load(cat);
+    };
+    tabsEl.appendChild(btn);
+  });
+
+  /* Fetch or serve from cache */
+  async function load(cat, force = false) {
+    if (!force && cache[cat]) { render(cache[cat]); return; }
+
+    if (API_KEY === 'YOUR_GNEWS_API_KEY_HERE') {
+      showError(
+        `⚠️ Almost there! Open <code>news.html</code> and replace<br>
+        <code>YOUR_GNEWS_API_KEY_HERE</code> with your free key.<br><br>
+        Get one in 30 sec at <a href="https://gnews.io" target="_blank">gnews.io</a> → Sign up → Copy API Key`
+      );
+      return;
+    }
+
+    showLoading();
+    const { mode, val } = CONFIG[cat];
+    const url = mode === 'top'
+      ? `https://gnews.io/api/v4/top-headlines?category=${val}&lang=en&max=10&apikey=${API_KEY}`
+      : `https://gnews.io/api/v4/search?q=${encodeURIComponent(val)}&lang=en&max=10&sortby=publishedAt&apikey=${API_KEY}`;
+
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!res.ok || data.errors) throw new Error(data.errors?.[0] || 'API error ' + res.status);
+      cache[cat] = data.articles || [];
+      render(cache[cat]);
+    } catch (err) {
+      showError('Could not fetch news: ' + err.message);
+    }
+  }
+
+  /* Render article cards */
+  function render(articles) {
+    const el = document.getElementById('content');
+    document.getElementById('footer').textContent =
+      'Updated ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ' · GNews';
+
+    if (!articles.length) {
+      el.innerHTML = '<div class="error-box">No articles found. Try refreshing.</div>';
+      return;
+    }
+
+    const grid = document.createElement('div');
+    grid.className = 'grid';
+
+    articles.forEach(a => {
+      const card = document.createElement('a');
+      card.className = 'card';
+      card.href = a.url;
+      card.target = '_blank';
+      card.rel = 'noopener noreferrer';
+
+      const imgHtml = a.image
+        ? `<img class="card-img" src="${x(a.image)}" alt="" loading="lazy"
+               onerror="this.outerHTML='<div class=card-placeholder>${ICONS[active]}</div>'">`
+        : `<div class="card-placeholder">${ICONS[active]}</div>`;
+
+      card.innerHTML = `
+        ${imgHtml}
+        <div class="card-body">
+          <div class="card-meta">
+            <span class="card-source">${x(a.source?.name || '')}</span>
+            <span class="card-sep">·</span>
+            <span class="card-time">${ago(a.publishedAt)}</span>
+          </div>
+          <div class="card-title">${x(a.title)}</div>
+          <div class="card-desc">${x(a.description || '')}</div>
+          <div class="card-cta">Read more →</div>
+        </div>`;
+
+      grid.appendChild(card);
+    });
+
+    el.innerHTML = '';
+    el.appendChild(grid);
+  }
+
+  function showLoading() {
+    document.getElementById('content').innerHTML =
+      `<div class="state"><div class="spinner"></div><div class="state-text">Fetching latest news…</div></div>`;
+  }
+  function showError(msg) {
+    document.getElementById('content').innerHTML = `<div class="error-box">${msg}</div>`;
+  }
+
+  /* Helpers */
+  function x(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function ago(iso) {
+    const h = Math.floor((Date.now() - new Date(iso)) / 3_600_000);
+    if (h < 1) return 'Just now';
+    if (h < 24) return h + 'h ago';
+    return Math.floor(h / 24) + 'd ago';
+  }
+
+  /* Boot */
+  load('All');
+</script>
+</body>
+</html>
