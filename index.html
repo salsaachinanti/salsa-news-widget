@@ -276,6 +276,39 @@
     tabsEl.appendChild(btn);
   });
 
+  /* Fetch a single RSS feed via allorigins CORS proxy, parse XML directly */
+  async function fetchFeed(feedUrl) {
+    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(feedUrl)}`;
+    const res = await fetch(proxy);
+    if (!res.ok) throw new Error('Proxy ' + res.status);
+    const { contents } = await res.json();
+
+    const doc = new DOMParser().parseFromString(contents, 'text/xml');
+    const feedName = doc.querySelector('channel > title')?.textContent?.trim() || feedUrl;
+    const MEDIA_NS = 'http://search.yahoo.com/mrss/';
+
+    return {
+      feedName,
+      items: [...doc.querySelectorAll('item')].map(el => ({
+        title:       el.querySelector('title')?.textContent?.trim() || '',
+        url:         el.querySelector('link')?.textContent?.trim() ||
+                     el.querySelector('guid')?.textContent?.trim() || '',
+        description: stripHtml(el.querySelector('description')?.textContent || ''),
+        image:       (() => {
+          const mc = el.getElementsByTagNameNS(MEDIA_NS, 'content')[0];
+          const mt = el.getElementsByTagNameNS(MEDIA_NS, 'thumbnail')[0];
+          if (mc?.getAttribute('url')) return mc.getAttribute('url');
+          if (mt?.getAttribute('url')) return mt.getAttribute('url');
+          const enc = el.querySelector('enclosure');
+          if (enc?.getAttribute('type')?.startsWith('image')) return enc.getAttribute('url');
+          const m = (el.querySelector('description')?.textContent || '').match(/<img[^>]+src=["']([^"']+)["']/i);
+          return m ? m[1] : null;
+        })(),
+        publishedAt: el.querySelector('pubDate')?.textContent?.trim() || '',
+      })),
+    };
+  }
+
   /* Fetch or serve from cache */
   async function load(cat, force = false) {
     if (!force && cache[cat]) { render(cache[cat], cat); return; }
@@ -284,43 +317,20 @@
     const urls = Array.isArray(FEEDS[cat]) ? FEEDS[cat] : [FEEDS[cat]];
 
     try {
-      const responses = await Promise.all(
-        urls.map(u =>
-          fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(u)}&count=12`)
-            .then(r => r.json())
-        )
-      );
+      const results = await Promise.all(urls.map(fetchFeed));
 
       let merged = [];
-      responses.forEach(data => {
-        if (data.status !== 'ok') return;
-        const feedName = data.feed?.title || cat;
-        data.items.forEach(item => {
-          merged.push({
-            title:       item.title,
-            url:         item.link,
-            description: stripHtml(item.description),
-            image:       pickImage(item),
-            source:      feedName,
-            publishedAt: item.pubDate,
-          });
-        });
-      });
+      results.forEach(({ feedName, items }) =>
+        items.forEach(item => merged.push({ ...item, source: feedName }))
+      );
 
-      if (!merged.length) throw new Error('No articles returned');
+      if (!merged.length) throw new Error('No articles found');
       merged.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
       cache[cat] = merged.slice(0, 12);
       render(cache[cat], cat);
     } catch (err) {
       showError('Could not load news: ' + err.message);
     }
-  }
-
-  function pickImage(item) {
-    if (item.thumbnail && item.thumbnail !== 'false' && item.thumbnail !== '') return item.thumbnail;
-    if (item.enclosure?.link && item.enclosure.type?.startsWith('image')) return item.enclosure.link;
-    const m = (item.description || '').match(/<img[^>]+src=["']([^"']+)["']/i);
-    return m ? m[1] : null;
   }
 
   function stripHtml(html) {
